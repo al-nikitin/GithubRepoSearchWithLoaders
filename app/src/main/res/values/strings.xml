@@ -1,0 +1,6 @@
+<resources>
+    <string name="app_name">GithubRepoSearch</string>
+    <string name="edit_text_hint">Enter search query</string>
+    <string name="error_message">Failed to get results</string>
+    <string name="search">Search</string>
+</resources>
