@@ -42,9 +42,7 @@ public class NetworkUtils {
 
             boolean hasInput = scanner.hasNext();
             if (hasInput) {
-                String s = scanner.next();
-                System.out.println(s);
-                return s;
+                return scanner.next();
             } else {
                 return null;
             }

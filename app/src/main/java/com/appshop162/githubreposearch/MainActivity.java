@@ -1,8 +1,12 @@
 package com.appshop162.githubreposearch;
 
-import android.os.AsyncTask;
-import android.support.v7.app.AppCompatActivity;
+import android.annotation.SuppressLint;
 import android.os.Bundle;
+import android.support.annotation.NonNull;
+import android.support.v4.app.LoaderManager;
+import android.support.v4.content.AsyncTaskLoader;
+import android.support.v4.content.Loader;
+import android.support.v7.app.AppCompatActivity;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -14,12 +18,14 @@ import com.appshop162.githubreposearch.NetworkUtils.NetworkUtils;
 import java.io.IOException;
 import java.net.URL;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements LoaderManager.LoaderCallbacks<String> {
     private EditText editText;
     private TextView tvOutput, tvError;
     private ProgressBar loadingIndicator;
     private Button buttonSearch;
     private String query;
+    private static final String SEARCH_QUERY_URL_EXTRA = "query";
+    private static final int GITHUB_SEARCH_LOADER = 22;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -38,63 +44,89 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-//        String s = "";
-//        for (int i = 0; i < 99; i++) {
-//            s += "1234567890";
-//        }
-//        tvOutput.setText(s);
+        if (savedInstanceState != null) {
+            query = savedInstanceState.getString(SEARCH_QUERY_URL_EXTRA);
+        }
+
+        //LoaderManager.getInstance(this).initLoader(GITHUB_SEARCH_LOADER, null, null);
     }
 
     private void makeGithubSearchQuery() {
-        String githubQuery = editText.getText().toString();
-        URL githubSearchUrl = NetworkUtils.buildUrl(githubQuery);
-        //System.out.println(githubSearchUrl);
-        new GithubQueryTask().execute(githubSearchUrl);
+        query = editText.getText().toString();
+        URL githubSearchUrl = NetworkUtils.buildUrl(query);
+
+        Bundle queryBundle = new Bundle();
+        queryBundle.putString(SEARCH_QUERY_URL_EXTRA, githubSearchUrl.toString());
+        LoaderManager loaderManager = LoaderManager.getInstance(this);
+        Loader<String> githubSearchLoader = loaderManager.getLoader(GITHUB_SEARCH_LOADER);
+
+        if (githubSearchLoader == null) {
+            loaderManager.initLoader(GITHUB_SEARCH_LOADER, queryBundle, this);
+        } else loaderManager.restartLoader(GITHUB_SEARCH_LOADER, queryBundle, this);
+
     }
 
     private void showJsonDataView() {
-        // First, make sure the error is invisible
-        tvError.setVisibility(View.INVISIBLE);
-        // Then, make sure the JSON data is visible
         tvOutput.setVisibility(View.VISIBLE);
     }
 
     private void showErrorMessage() {
-        // First, hide the currently visible data
-        tvOutput.setVisibility(View.INVISIBLE);
-        // Then, show the error
         tvError.setVisibility(View.VISIBLE);
     }
 
-    public class GithubQueryTask extends AsyncTask<URL, Void, String> {
-
-        @Override
-        protected void onPreExecute() {
-            super.onPreExecute();
-            loadingIndicator.setVisibility(View.VISIBLE);
-        }
-
-        @Override
-        protected String doInBackground(URL... params) {
-            URL searchURL = params[0];
-            String githubSearchResults = null;
-            try {
-                githubSearchResults = NetworkUtils.getResponseFromHttpUrl(searchURL);
-            } catch (IOException e) {
-                e.printStackTrace();
+    @SuppressLint("StaticFieldLeak")
+    @NonNull
+    @Override
+    public Loader<String> onCreateLoader(int i, final Bundle bundle) {
+        return new AsyncTaskLoader<String>(this) {
+            @Override
+            protected void onStartLoading() {
+                if (bundle == null) return;
+                tvError.setVisibility(View.INVISIBLE);
+                tvOutput.setVisibility(View.INVISIBLE);
+                loadingIndicator.setVisibility(View.VISIBLE);
+                forceLoad();
             }
-            return githubSearchResults;
-        }
 
-        @Override
-        protected void onPostExecute(String githubSearchResults) {
-            loadingIndicator.setVisibility(View.INVISIBLE);
-            if (githubSearchResults != null && !githubSearchResults.equals("")) {
-                showJsonDataView();
-                tvOutput.setText(githubSearchResults);
-            } else {
-                showErrorMessage();
+            @Override
+            public String loadInBackground() {
+                try {
+                    Thread.sleep(9);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                String searchQueryUrlString = bundle.getString(SEARCH_QUERY_URL_EXTRA);
+                if (searchQueryUrlString == null || searchQueryUrlString.equals("")) return null;
+                try {
+                    URL githubURL = new URL(searchQueryUrlString);
+                    return NetworkUtils.getResponseFromHttpUrl(githubURL);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    return null;
+                }
             }
+        };
+    }
+
+    @Override
+    public void onLoadFinished(@NonNull Loader<String> loader, String s) {
+        loadingIndicator.setVisibility(View.INVISIBLE);
+        if (s != null && !s.equals("")) {
+            showJsonDataView();
+            tvOutput.setText(s);
+        } else {
+            showErrorMessage();
         }
+    }
+
+    @Override
+    public void onLoaderReset(@NonNull Loader<String> loader) {
+        System.out.println("RESET");
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putString(SEARCH_QUERY_URL_EXTRA, query);
     }
 }
